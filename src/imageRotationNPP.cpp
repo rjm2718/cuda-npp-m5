@@ -1,88 +1,91 @@
-/* Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *  * Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *  * Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *  * Neither the name of NVIDIA CORPORATION nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+#include "imageproc.h"
 
-#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
-#define WINDOWS_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#pragma warning(disable : 4819)
-#endif
+// #include <Exceptions.h>
+// #include <ImageIO.h>
+// #include <ImagesCPU.h>
+// #include <ImagesNPP.h>
 
-#include <Exceptions.h>
-#include <ImageIO.h>
-#include <ImagesCPU.h>
-#include <ImagesNPP.h>
+#include <iostream>
+#include <npp.h>
+#include <cuda_runtime.h>
+#include <opencv4/opencv2/opencv.hpp>
 
 #include <string.h>
 #include <fstream>
-#include <iostream>
+#include <filesystem>
 
-#include <cuda_runtime.h>
-#include <npp.h>
+using namespace std;
 
-#include <helper_cuda.h>
-#include <helper_string.h>
+void checkCudaInit(int dev) {
 
-bool printfNPPinfo(int argc, char *argv[])
-{
     const NppLibraryVersion *libVer = nppGetLibVersion();
-
-    printf("NPP Library Version %d.%d.%d\n", libVer->major, libVer->minor,
-           libVer->build);
+    printf("NPP Library Version %d.%d.%d\n", libVer->major, libVer->minor, libVer->build);
 
     int driverVersion, runtimeVersion;
     cudaDriverGetVersion(&driverVersion);
     cudaRuntimeGetVersion(&runtimeVersion);
 
-    printf("  CUDA Driver  Version: %d.%d\n", driverVersion / 1000,
-           (driverVersion % 100) / 10);
-    printf("  CUDA Runtime Version: %d.%d\n", runtimeVersion / 1000,
-           (runtimeVersion % 100) / 10);
+    printf("CUDA Driver  Version: %d.%d\n", driverVersion / 1000, (driverVersion % 100) / 10);
+    printf("CUDA Runtime Version: %d.%d\n", runtimeVersion / 1000, (runtimeVersion % 100) / 10);
 
-    // Min spec is SM 1.0 devices
-    bool bVal = checkCudaCapabilities(1, 0);
-    return bVal;
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, dev);
+    printf("compute capability: %d.%d\n", deviceProp.major, deviceProp.minor);
+
+    if (deviceProp.major < 1) { // TODO
+        printf("*** compute capability insufficient ***\n");
+        exit(-1);
+    }
+}
+
+void helpExit(int argc, char *argv[]) {
+    printf("Usage: %s <input directory> <output directory>\n", argv[0]);
+    printf("All files in input will be processed and written to output.\n");
+    exit(EXIT_FAILURE);
+}
+
+bool accept(filesystem::directory_entry entry) {
+    if (! entry.is_regular_file()) return false;
+    string ext = entry.path().extension().string();
+    if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") {
+        printf("accepting: %s\n", ext.c_str());
+        return true;
+    }
+    return false;
 }
 
 int main(int argc, char *argv[])
 {
-    printf("%s Starting...\n\n", argv[0]);
-
     try
     {
-        std::string sFilename;
+        string sFilename;
         char *filePath;
 
-        findCudaDevice(argc, (const char **)argv);
-
-        if (printfNPPinfo(argc, argv) == false)
-        {
-            exit(EXIT_SUCCESS);
+        // argv[1] is input directory, argv[2] is output
+        if (argc != 3) {
+            helpExit(argc, argv);
         }
+
+        if (!filesystem::exists(argv[1]) || !filesystem::is_directory(argv[1])) {
+            cout << "src directory doesn't exist" << "\n";
+            helpExit(argc, argv);
+        }
+        if (!filesystem::exists(argv[2]) || !filesystem::is_directory(argv[2])) {
+            cout << "target directory doesn't exist" << "\n";
+            helpExit(argc, argv);
+        }
+
+        checkCudaInit(0);
+
+
+        for (const auto & entry : filesystem::directory_iterator(argv[1])) {
+            if (accept(entry)) {
+                std::cout << entry.path() << std::endl;
+            }
+        }
+
+/*
+        // read files from input dir
 
         if (checkCmdLineFlag(argc, (const char **)argv, "input"))
         {
@@ -187,15 +190,19 @@ int main(int argc, char *argv[])
         nppiFree(oDeviceSrc.data());
         nppiFree(oDeviceDst.data());
 
+*/
         exit(EXIT_SUCCESS);
     }
-    catch (npp::Exception &rException)
-    {
-        std::cerr << "Program error! The following exception occurred: \n";
-        std::cerr << rException << std::endl;
-        std::cerr << "Aborting." << std::endl;
-
-        exit(EXIT_FAILURE);
+    // catch (npp::Exception &rException)
+    // {
+    //     std::cerr << "Program error! The following exception occurred: \n";
+    //     std::cerr << rException << std::endl;
+    //     std::cerr << "Aborting." << std::endl;
+    //
+    //     exit(EXIT_FAILURE);
+    // }
+    catch (const exception &e) {
+        std::cout << e.what() << std::endl;
     }
     catch (...)
     {
