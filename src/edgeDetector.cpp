@@ -186,7 +186,9 @@ int main(int argc, char *argv[]) {
 
         for (const auto &src: fs::directory_iterator(srcDir)) {
             if (accept(src)) {
-                fs::path dst = fs::path(dstDir) / src.path().filename();
+                std::string dstFn = src.path().stem().string() + std::string(".pgm"); // filename();
+                fs::path dst = fs::path(dstDir) / dstFn;
+                std::cout << dst << std::endl;
                 convert(src.path(), dst);
             }
         }

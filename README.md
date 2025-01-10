@@ -3,8 +3,14 @@
 ## Overview
 
 This project demonstrates the use of NVIDIA Performance Primitives (NPP) library with CUDA to perform edge detection.
-The goal is to utilize GPU acceleration to efficiently rotate a given image by a specified angle, leveraging the computational power of modern GPUs.
 
+example: 
+
+<img src="inputs/Lena-gray.png" width="400">
+
+converts to:
+
+<img src="Lena-gray.png" width="400">
 
 
 ## Code Organization
