@@ -1,61 +1,49 @@
-################################################################################
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#  * Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-#  * Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in the
-#    documentation and/or other materials provided with the distribution.
-#  * Neither the name of NVIDIA CORPORATION nor the names of its
-#    contributors may be used to endorse or promote products derived
-#    from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
-# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
-# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-################################################################################
-#
-# Makefile project only supported on Mac OS X and Linux Platforms)
-#
-################################################################################
 
-# Define the compiler and flags
-NVCC = /usr/local/cuda/bin/nvcc
-CXX = g++
-CXXFLAGS = -std=c++17 -I/usr/local/cuda/include -I/usr/include/opencv4
-LDFLAGS = -L/usr/local/cuda/lib64 -lcudart -lnppc -lnppial -lnppicc -lnppidei -lnppif -lnppig -lnppim -lnppist -lnppisu -lnppitc
 
-# Define directories
-SRC_DIR = src
-LIB_DIR = lib
+CUDA_PATH ?= /usr/local/cuda
+NVCC          := $(CUDA_PATH)/bin/nvcc -ccbin g++
 
-# Define source files and target executable
-SRC = $(SRC_DIR)/imageRotationNPP.cpp
-TARGET = imageRotationNPP
+NVCCFLAGS   := -m64
+CCFLAGS     :=
+LDFLAGS     :=
 
-# Define the default rule
-all: $(TARGET)
+# Debug build flags
+ifeq ($(dbg),1)
+      NVCCFLAGS += -g -G
+      BUILD_TYPE := debug
+else
+      BUILD_TYPE := release
+endif
 
-# Rule for building the target executable
-$(TARGET): $(SRC)
-	$(NVCC) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
+ALL_CCFLAGS :=
+ALL_CCFLAGS += $(NVCCFLAGS)
+ALL_CCFLAGS += $(addprefix -Xcompiler ,$(CCFLAGS))
+ALL_CCFLAGS += --threads 0 --std=c++17
 
-# Rule for running the application
-run: $(TARGET)
-	./$(TARGET) inputs outputs
+ALL_LDFLAGS :=
+ALL_LDFLAGS += $(ALL_CCFLAGS)
+ALL_LDFLAGS += $(addprefix -Xlinker ,$(LDFLAGS))
 
-# Clean up
+
+INCLUDES += -I./Common -I./Common/UtilNPP
+LIBRARIES += -lnppisu_static -lnppif_static -lnppc_static -lculibos -lfreeimage
+
+
+
+
+all: build
+
+build: edgeDetector
+
+%.o : src/%.cpp
+	$(NVCC) $(INCLUDES) $(ALL_CCFLAGS) -o $@ -c $<
+
+edgeDetector: edgeDetector.o
+	$(NVCC) $(ALL_LDFLAGS) -o $@ $+ $(LIBRARIES)
+
+run: build
+	./edgeDetector inputs outputs
+
 clean:
-	rm $(TARGET)
+	rm -f edgeDetector edgeDetector.o
+
