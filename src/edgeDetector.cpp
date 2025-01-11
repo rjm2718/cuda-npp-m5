@@ -45,8 +45,7 @@ inline int cudaDeviceInit(int argc, const char **argv) {
 
     cudaDeviceProp deviceProp;
     cudaGetDeviceProperties(&deviceProp, dev);
-    std::cerr << "cudaSetDevice GPU" << dev << " = " << deviceProp.name
-            << std::endl;
+    std::cerr << "cudaSetDevice GPU" << dev << " = " << deviceProp.name << std::endl;
 
     checkCudaErrors(cudaSetDevice(dev));
 
@@ -54,26 +53,7 @@ inline int cudaDeviceInit(int argc, const char **argv) {
 }
 
 
-bool printfNPPinfo(int argc, char *argv[]) {
-    const NppLibraryVersion *libVer = nppGetLibVersion();
-
-    printf("NPP Library Version %d.%d.%d\n", libVer->major, libVer->minor,
-           libVer->build);
-
-    int driverVersion, runtimeVersion;
-    cudaDriverGetVersion(&driverVersion);
-    cudaRuntimeGetVersion(&runtimeVersion);
-
-    printf("  CUDA Driver  Version: %d.%d\n", driverVersion / 1000,
-           (driverVersion % 100) / 10);
-    printf("  CUDA Runtime Version: %d.%d\n", runtimeVersion / 1000,
-           (runtimeVersion % 100) / 10);
-
-    // Min spec is SM 1.0 devices
-    bool bVal = checkCudaCapabilities(1, 0);
-    return bVal;
-}
-
+// check file type
 bool accept(fs::directory_entry entry) {
     if (!entry.is_regular_file()) return false;
     std::string ext = entry.path().extension().string();
@@ -83,6 +63,7 @@ bool accept(fs::directory_entry entry) {
     return false;
 }
 
+// NPP code to perform transformation; reads & writes image files given in arguments
 void convert(fs::path src, fs::path dst) {
     std::cout << src << " -> " << dst << std::endl;
 
@@ -117,17 +98,6 @@ void convert(fs::path src, fs::path dst) {
 
     checkCudaErrors( cudaMalloc((void **) &pScratchBufferNPP, nBufferSize) );
 
-    // now run the canny edge detection filter
-    // Using nppiNormL2 will produce larger magnitude values allowing for finer
-    // control of threshold values while nppiNormL1 will be slightly faster.
-    // Also, selecting the sobel gradient filter allows up to a 5x5 kernel size
-    // which can produce more precise results but is a bit slower. Commonly
-    // nppiNormL2 and sobel gradient filter size of 3x3 are used. Canny
-    // recommends that the high threshold value should be about 3 times the low
-    // threshold value. The threshold range will depend on the range of
-    // magnitude values that the sobel gradient filter generates for a
-    // particular image.
-
     Npp16s nLowThreshold = 72;
     Npp16s nHighThreshold = 256;
 
@@ -151,27 +121,17 @@ void convert(fs::path src, fs::path dst) {
 
     saveImage(dst, oHostDst);
     std::cout << "Saved image: " << dst << std::endl;
-
-    // nppiFree(oDeviceSrc.data());
-    // nppiFree(oDeviceDst.data());
-    //
-    // nppiFree(oHostSrc.data());
-    // nppiFree(oHostDst.data());
 }
 
-int main(int argc, char *argv[]) {
-    printf("%s Starting...\n\n", argv[0]);
 
+int main(int argc, char *argv[]) {
     try {
         char *srcDir;
         char *dstDir;
 
         cudaDeviceInit(argc, (const char **) argv);
 
-        if (printfNPPinfo(argc, argv) == false) {
-            exit(EXIT_SUCCESS);
-        }
-
+        /* parse command line args */
         if (checkCmdLineFlag(argc, (const char **) argv, "input")) {
             getCmdLineArgumentString(argc, (const char **) argv, "input", &srcDir);
         } else {
@@ -184,11 +144,12 @@ int main(int argc, char *argv[]) {
             dstDir = (char *) "outputs";
         }
 
+        /* iterate through all acceptable image files in input directory, processing each one by one */
         for (const auto &src: fs::directory_iterator(srcDir)) {
             if (accept(src)) {
-                std::string dstFn = src.path().stem().string() + std::string(".pgm"); // filename();
+                std::string dstFn = src.path().stem().string() + std::string(".pgm");
                 fs::path dst = fs::path(dstDir) / dstFn;
-                std::cout << dst << std::endl;
+
                 convert(src.path(), dst);
             }
         }

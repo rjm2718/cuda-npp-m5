@@ -10,7 +10,7 @@ example:
 
 converts to:
 
-<img src="Lena-gray.png" width="400">
+<img src="Lena-gray-output.png" width="400">
 
 
 ## Code Organization
@@ -61,9 +61,10 @@ Project source includes files from Nvidia samples 'Common' & 'Common/UtilNPP': e
 See: [https://github.com/NVIDIA/cuda-samples]
 
 ```
-$ make
+$ make clean build
 ```
-or
+
+include debug symbols (see: cuda-gdb)
 ```
 $ dbg=1 make
 ```
@@ -74,5 +75,10 @@ After building the project, you can run the program using the following command:
 ```bash
 ./edgeDetector
 ```
-
 This command will execute the compiled binary, scanning the 'inputs' directory for images, executing an edge detection NPP kernel on each, and writing results to 'outputs'.
+
+optional args:
+```bash
+--input=altinputdir
+--output=altoutputdir
+```
